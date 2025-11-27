@@ -1,3 +1,4 @@
+// VERSION SECURISEE V2
 require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -39,10 +40,8 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'views', 'index.html'));
 });
 
-// PAGE ADMIN SECRÈTE 🕵️‍♂️ (SÉCURISÉE)
 app.get('/admin', async (req, res) => {
-    // 🔒 SÉCURITÉ : On vérifie le mot de passe dans l'URL
-    // Le mot de passe doit être stocké dans les variables d'environnement
+    // 🔒 SÉCURITÉ
     const adminPassword = process.env.ADMIN_PASSWORD;
     const userPassword = req.query.secret;
 
