@@ -40,16 +40,15 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'views', 'index.html'));
 });
 
+// PAGE ADMIN SECRÈTE (DESIGN LINEAR)
 app.get('/admin', async (req, res) => {
-    // 🔒 SÉCURITÉ
     const adminPassword = process.env.ADMIN_PASSWORD;
     const userPassword = req.query.secret;
 
     if (!adminPassword || userPassword !== adminPassword) {
-        return res.status(403).send("⛔ Accès INTERDIT ! Tu n'as pas le mot de passe.");
+        return res.status(403).send("<body style='background:#08090A; color:#888; display:flex; justify-content:center; align-items:center; height:100vh; font-family:sans-serif;'>⛔ Access Denied</body>");
     }
 
-    // Si le mot de passe est bon, on affiche la page...
     try {
         const orders = await Order.find().sort({ date: -1 });
         
@@ -57,25 +56,22 @@ app.get('/admin', async (req, res) => {
             <html>
             <head>
                 <title>Admin Dashboard</title>
+                <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
                 <style>
-                    body { font-family: sans-serif; padding: 20px; background: #f4f4f4; }
-                    table { width: 100%; border-collapse: collapse; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-                    th, td { padding: 12px; border-bottom: 1px solid #ddd; text-align: left; }
-                    th { background-color: #4F46E5; color: white; }
-                    tr:hover { background-color: #f1f1f1; }
-                    h1 { color: #333; }
+                    body { font-family: 'Inter', sans-serif; padding: 40px; background: #08090A; color: #eee; }
+                    h1 { font-weight: 600; letter-spacing: -1px; margin-bottom: 20px; }
+                    table { width: 100%; border-collapse: collapse; background: #141516; border: 1px solid #333; border-radius: 8px; overflow: hidden; }
+                    th { text-align: left; padding: 15px; background: #1C1D21; color: #8A8F98; font-size: 0.85rem; text-transform: uppercase; }
+                    td { padding: 15px; border-bottom: 1px solid #222; color: #ddd; font-size: 0.95rem; }
+                    tr:last-child td { border-bottom: none; }
+                    .tag { padding: 4px 8px; background: rgba(94, 106, 210, 0.2); color: #8E96FF; border-radius: 4px; font-size: 0.8rem; }
                 </style>
             </head>
             <body>
-                <h1>💰 Admin Dashboard - Mes Ventes</h1>
-                <p>Total ventes : <strong>${orders.length}</strong></p>
+                <h1>Admin Overview</h1>
+                <p style="color:#888; margin-bottom:30px;">Total Revenue: <span style="color:#fff;">${orders.length * 9} €</span></p>
                 <table>
-                    <tr>
-                        <th>Date</th>
-                        <th>Email Client</th>
-                        <th>Projet</th>
-                        <th>Montant</th>
-                    </tr>`;
+                    <tr><th>Date</th><th>Customer</th><th>Project</th><th>Amount</th></tr>`;
         
         orders.forEach(order => {
             html += `
@@ -83,15 +79,14 @@ app.get('/admin', async (req, res) => {
                     <td>${order.date.toLocaleString()}</td>
                     <td>${order.email}</td>
                     <td>${order.projectName}</td>
-                    <td>${(order.amount / 100).toFixed(2)} €</td>
+                    <td><span class="tag">${(order.amount / 100).toFixed(2)} €</span></td>
                 </tr>`;
         });
 
-        html += `</table><br><a href="/">← Retour au site</a></body></html>`;
+        html += `</table></body></html>`;
         res.send(html);
     } catch (err) {
-        console.error(err);
-        res.send("Erreur de connexion à la base de données.");
+        res.send("DB Error");
     }
 });
 // Page de succès après paiement
@@ -99,43 +94,37 @@ app.get('/success', (req, res) => {
     res.send(`
         <html>
         <head>
-            <title>Merci !</title>
+            <title>Order Confirmed</title>
             <link rel="stylesheet" href="/css/style.css">
         </head>
-        <body style="text-align:center; padding-top:50px; background-color:#F3F4F6;">
-            <div style="background:white; max-width:500px; margin:auto; padding:40px; border-radius:10px; box-shadow:0 10px 25px rgba(0,0,0,0.1);">
-                <h1 style="color:#4F46E5;">Merci pour votre achat ! 🎉</h1>
-                <p>Votre téléchargement va démarrer dans quelques secondes...</p>
-                <p id="status" style="font-weight:bold; color:#6B7280;">Vérification du paiement...</p>
+        <body style="display:flex; justify-content:center; align-items:center; height:100vh; text-align:center;">
+            <div class="configurator-card" style="text-align:center;">
+                <div style="font-size:3rem; margin-bottom:20px;">🎉</div>
+                <h1 style="margin-bottom:10px;">Payment Successful</h1>
+                <p style="color:#8A8F98; margin-bottom:30px;">Your boilerplate is being generated...</p>
+                <p id="status" style="color:#5E6AD2; font-weight:600;">Initializing download...</p>
             </div>
             <script>
                 const urlParams = new URLSearchParams(window.location.search);
                 const sessionId = urlParams.get('session_id');
-
                 if (sessionId) {
                     fetch('/verify-payment', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({ sessionId })
                     })
-                    .then(res => {
-                        if (res.ok) return res.blob();
-                        throw new Error('Paiement non validé');
-                    })
+                    .then(res => res.blob())
                     .then(blob => {
                         const url = window.URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url;
-                        a.download = 'MonSaaS.zip';
+                        a.download = 'TurboSaaS.zip';
                         document.body.appendChild(a);
                         a.click();
-                        document.getElementById('status').innerText = "✅ Téléchargement terminé !";
-                        document.getElementById('status').style.color = "green";
+                        document.getElementById('status').innerText = "Download Started!";
+                        document.getElementById('status').style.color = "#4CAF50";
                     })
-                    .catch(err => {
-                        document.getElementById('status').innerText = "❌ Erreur : Paiement non trouvé.";
-                        document.getElementById('status').style.color = "red";
-                    });
+                    .catch(err => document.getElementById('status').innerText = "Download Error.");
                 }
             </script>
         </body>
