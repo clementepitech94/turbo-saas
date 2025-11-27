@@ -1,52 +1,34 @@
 document.getElementById('saasForm').addEventListener('submit', async (e) => {
-    e.preventDefault(); // Empêche le rechargement de la page
-
+    e.preventDefault();
     const submitBtn = document.querySelector('.btn-primary');
-    const originalText = submitBtn.innerText;
-    
-    // 1. Changer le texte du bouton pour montrer que ça charge
-    submitBtn.innerText = 'Génération en cours... ⚙️';
+    submitBtn.innerText = 'Redirection vers le paiement... 💳';
     submitBtn.disabled = true;
 
-    // 2. Récupérer les données du formulaire
     const formData = {
         projectName: document.getElementById('projectName').value || 'mon-saas',
         options: Array.from(document.querySelectorAll('input[name="options"]:checked')).map(el => el.value)
     };
 
     try {
-        // 3. Envoyer la demande au serveur (Backend)
-        const response = await fetch('/generate', {
+        // On demande au serveur de créer une session Stripe
+        const response = await fetch('/create-checkout-session', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(formData)
         });
 
-        if (response.ok) {
-            // 4. Si c'est bon, on déclenche le téléchargement
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${formData.projectName}.zip`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            
-            submitBtn.innerText = 'Téléchargement lancé ! 🚀';
+        const data = await response.json();
+
+        if (data.url) {
+            // On redirige l'utilisateur vers Stripe
+            window.location.href = data.url;
         } else {
-            alert("Erreur lors de la génération.");
-            submitBtn.innerText = originalText;
+            alert("Erreur lors de l'initialisation du paiement.");
+            submitBtn.disabled = false;
         }
     } catch (err) {
         console.error(err);
-        alert("Erreur de connexion au serveur.");
-        submitBtn.innerText = originalText;
-    }
-
-    // Réactiver le bouton après 3 secondes
-    setTimeout(() => {
+        alert("Erreur de connexion.");
         submitBtn.disabled = false;
-        submitBtn.innerText = originalText;
-    }, 3000);
+    }
 });
