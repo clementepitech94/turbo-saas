@@ -39,10 +39,19 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'views', 'index.html'));
 });
 
-// PAGE ADMIN SECRÈTE 🕵️‍♂️ (Pour voir tes ventes)
+// PAGE ADMIN SECRÈTE 🕵️‍♂️ (SÉCURISÉE)
 app.get('/admin', async (req, res) => {
+    // 🔒 SÉCURITÉ : On vérifie le mot de passe dans l'URL
+    // Le mot de passe doit être stocké dans les variables d'environnement
+    const adminPassword = process.env.ADMIN_PASSWORD;
+    const userPassword = req.query.secret;
+
+    if (!adminPassword || userPassword !== adminPassword) {
+        return res.status(403).send("⛔ Accès INTERDIT ! Tu n'as pas le mot de passe.");
+    }
+
+    // Si le mot de passe est bon, on affiche la page...
     try {
-        // On récupère toutes les commandes, de la plus récente à la plus ancienne
         const orders = await Order.find().sort({ date: -1 });
         
         let html = `
@@ -80,14 +89,12 @@ app.get('/admin', async (req, res) => {
         });
 
         html += `</table><br><a href="/">← Retour au site</a></body></html>`;
-        
         res.send(html);
     } catch (err) {
         console.error(err);
         res.send("Erreur de connexion à la base de données.");
     }
 });
-
 // Page de succès après paiement
 app.get('/success', (req, res) => {
     res.send(`
