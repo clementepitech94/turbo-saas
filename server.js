@@ -8,7 +8,7 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const YOUR_DOMAIN = 'https://turbo-saas.onrender.com'; // ⚠️ Mets ton lien Render ICI !
+const YOUR_DOMAIN = 'https://turbo-saas.onrender.com/'; // ⚠️ Mets ton lien Render ICI !
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(bodyParser.urlencoded({ extended: true }));
