@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TurboSaaS - Générateur de Boilerplate Node.js</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="logo">🚀 TurboSaaS</div>
+        <div class="nav-links">
+            <a href="#features">Fonctionnalités</a>
+            <a href="#pricing">Tarifs</a>
+            <a href="#" class="btn-secondary">Connexion</a>
+        </div>
+    </nav>
+
+    <header class="hero">
+        <div class="container">
+            <div class="hero-text">
+                <h1>Arrêtez de configurer.<br>Commencez à coder.</h1>
+                <p>Générez une architecture SaaS Node.js/Express complète, sécurisée et prête à l'emploi en moins de 30 secondes.</p>
+            </div>
+
+            <div class="configurator-card">
+                <form id="saasForm">
+                    <div class="form-group">
+                        <label for="projectName">Nom du projet</label>
+                        <input type="text" id="projectName" name="projectName" placeholder="mon-super-saas" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Options incluses</label>
+                        <div class="checkbox-group">
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="options" value="auth" checked>
+                                <span>Authentification (Login/Register)</span>
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="options" value="database" checked>
+                                <span>MongoDB & Mongoose</span>
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="options" value="payment">
+                                <span>Intégration Stripe (Premium)</span> <span class="badge">PRO</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-primary">Générer mon SaaS ⚡️</button>
+                    <p class="small-text">Téléchargement instantané .zip</p>
+                </form>
+            </div>
+        </div>
+    </header>
+
+    <section class="features" id="features">
+        <div class="container grid-3">
+            <div class="feature-box">
+                <h3>⚡️ Ultra Rapide</h3>
+                <p>Économisez 4h de configuration serveur, routes et dossiers.</p>
+            </div>
+            <div class="feature-box">
+                <h3>🛡️ Sécurisé</h3>
+                <p>Structure MVC, variables d'environnement et protection basique incluses.</p>
+            </div>
+            <div class="feature-box">
+                <h3>💰 Prêt à vendre</h3>
+                <p>Structurez votre code pour scaler et monétiser dès le jour 1.</p>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <p>&copy; 2024 TurboSaaS. Codé pour les builders.</p>
+    </footer>
+
+    <script src="/js/script.js"></script>
+</body>
+</html>
