@@ -8,223 +8,184 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-// ⚠️ Vérifie que c'est bien ton lien Render
-const YOUR_DOMAIN = 'https://turbo-saas.onrender.com';
+const YOUR_DOMAIN = 'https://turbo-saas.onrender.com'; // ⚠️ Ton lien Render
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
-// --- CONNEXION MONGODB ---
+// CONNEXION BDD (Pour ton SaaS à toi)
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('✅ MongoDB Connecté'))
     .catch(err => console.error('❌ Erreur MongoDB:', err));
 
 const OrderSchema = new mongoose.Schema({
-    email: String,
-    projectName: String,
-    amount: Number,
-    date: { type: Date, default: Date.now },
-    stripeSessionId: String
+    email: String, projectName: String, amount: Number, date: { type: Date, default: Date.now }, stripeSessionId: String
 });
 const Order = mongoose.model('Order', OrderSchema);
 
-// --- ROUTES ---
+// --- ROUTES DU SAAS ---
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'views', 'index.html')));
 
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'views', 'index.html'));
-});
-
-// PAGE ADMIN (Calcul du vrai total dynamique)
 app.get('/admin', async (req, res) => {
     const adminPassword = process.env.ADMIN_PASSWORD;
     const userPassword = req.query.secret;
-
-    if (!adminPassword || userPassword !== adminPassword) {
-        return res.status(403).send("<body style='background:#08090A; color:#888; display:flex; justify-content:center; align-items:center; height:100vh; font-family:sans-serif;'>⛔ Accès Refusé</body>");
-    }
+    if (!adminPassword || userPassword !== adminPassword) return res.status(403).send("⛔ Accès Refusé");
 
     try {
         const orders = await Order.find().sort({ date: -1 });
-        
-        // Calcul intelligent du total (additionne les montants exacts stockés en base)
         const totalRevenue = orders.reduce((acc, order) => acc + order.amount, 0) / 100;
-
-        let html = `
-            <html>
-            <head>
-                <title>Tableau de Bord Admin</title>
-                <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-                <style>
-                    body { font-family: 'Inter', sans-serif; padding: 40px; background: #08090A; color: #eee; }
-                    h1 { font-weight: 600; letter-spacing: -1px; margin-bottom: 20px; }
-                    table { width: 100%; border-collapse: collapse; background: #141516; border: 1px solid #333; border-radius: 8px; overflow: hidden; }
-                    th { text-align: left; padding: 15px; background: #1C1D21; color: #8A8F98; font-size: 0.85rem; text-transform: uppercase; }
-                    td { padding: 15px; border-bottom: 1px solid #222; color: #ddd; font-size: 0.95rem; }
-                    tr:last-child td { border-bottom: none; }
-                    .tag { padding: 4px 8px; background: rgba(94, 106, 210, 0.2); color: #8E96FF; border-radius: 4px; font-size: 0.8rem; }
-                </style>
-            </head>
-            <body>
-                <h1>Tableau de Bord</h1>
-                <p style="color:#888; margin-bottom:30px;">Revenu Total : <span style="color:#fff; font-weight:bold; font-size:1.2rem;">${totalRevenue.toFixed(2)} €</span></p>
-                <table>
-                    <tr><th>Date</th><th>Client</th><th>Projet</th><th>Montant</th></tr>`;
         
-        orders.forEach(order => {
-            html += `
-                <tr>
-                    <td>${order.date.toLocaleString('fr-FR')}</td>
-                    <td>${order.email}</td>
-                    <td>${order.projectName}</td>
-                    <td><span class="tag">${(order.amount / 100).toFixed(2)} €</span></td>
-                </tr>`;
-        });
-
-        html += `</table></body></html>`;
+        let html = `<html><head><title>Admin</title><style>body{font-family:sans-serif;background:#111;color:#eee;padding:20px}table{width:100%;border-collapse:collapse;background:#222}th,td{padding:10px;border:1px solid #333}</style></head><body><h1>Total: ${totalRevenue.toFixed(2)}€</h1><table>${orders.map(o => `<tr><td>${o.date.toLocaleString()}</td><td>${o.email}</td><td>${o.projectName}</td><td>${(o.amount/100).toFixed(2)}€</td></tr>`).join('')}</table></body></html>`;
         res.send(html);
-    } catch (err) {
-        res.send("Erreur Base de données");
-    }
+    } catch (err) { res.send("Erreur DB"); }
 });
 
 app.get('/success', (req, res) => {
-    res.send(`
-        <html>
-        <head>
-            <title>Commande Confirmée</title>
-            <link rel="stylesheet" href="/css/style.css">
-        </head>
-        <body style="display:flex; justify-content:center; align-items:center; height:100vh; text-align:center;">
-            <div class="configurator-card" style="text-align:center;">
-                <div style="font-size:3rem; margin-bottom:20px;">🎉</div>
-                <h1 style="margin-bottom:10px;">Paiement Validé</h1>
-                <p style="color:#8A8F98; margin-bottom:30px;">Génération de votre projet PRO en cours...</p>
-                <p id="status" style="color:#5E6AD2; font-weight:600;">Lancement du téléchargement...</p>
-            </div>
-            <script>
-                const urlParams = new URLSearchParams(window.location.search);
-                const sessionId = urlParams.get('session_id');
-                if (sessionId) {
-                    fetch('/verify-payment', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ sessionId })
-                    })
-                    .then(res => res.blob())
-                    .then(blob => {
-                        const url = window.URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = 'TurboSaaS_Pro.zip';
-                        document.body.appendChild(a);
-                        a.click();
-                        document.getElementById('status').innerText = "Téléchargement lancé !";
-                        document.getElementById('status').style.color = "#4CAF50";
-                    })
-                    .catch(err => document.getElementById('status').innerText = "Erreur de téléchargement.");
-                }
-            </script>
-        </body>
-        </html>
-    `);
+    res.send(`<html><body style="background:#08090A;color:white;display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;text-align:center"><div><h1>✅ Paiement Validé</h1><p id="status">Téléchargement...</p></div><script>const p=new URLSearchParams(window.location.search);const s=p.get('session_id');if(s){fetch('/verify-payment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:s})}).then(r=>r.blob()).then(b=>{const u=window.URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='TurboSaaS_Ultimate.zip';document.body.appendChild(a);a.click();document.getElementById('status').innerText="Merci !";})}</script></body></html>`);
 });
 
-app.get('/cancel', (req, res) => res.send('<h1 style="color:white; text-align:center; margin-top:50px; font-family:sans-serif;">Paiement annulé.</h1><div style="text-align:center"><a href="/" style="color:#8E96FF">Retour</a></div>'));
+app.get('/cancel', (req, res) => res.redirect('/'));
 
-// --- CRÉATION DE SESSION PAIEMENT (PRIX MODIFIÉ ICI) ---
 app.post('/create-checkout-session', async (req, res) => {
-    const { projectName } = req.body;
     try {
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
             line_items: [{
                 price_data: {
                     currency: 'eur',
-                    product_data: {
-                        name: 'Boilerplate SaaS Node.js (Version PRO)',
-                        description: `Projet: ${projectName} - Inclus: Auth, Mongo, Stripe, Admin`,
-                    },
-                    // 👇 C'EST ICI QU'ON CHANGE LE PRIX
-                    unit_amount: 1499, // 1499 centimes = 14.99€
+                    product_data: { name: 'SaaS Boilerplate ULTIMATE (MVC + Auth Ready)' },
+                    unit_amount: 1499, // 14.99€
                 },
                 quantity: 1,
             }],
             mode: 'payment',
-            metadata: { projectName: projectName },
+            metadata: { projectName: req.body.projectName },
             success_url: `${YOUR_DOMAIN}/success?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${YOUR_DOMAIN}/cancel`,
         });
         res.json({ url: session.url });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// --- LIVRAISON DU PRODUIT (CONTENU AMÉLIORÉ) ---
+// --- LE GÉNÉRATEUR PREMIUM ---
 app.post('/verify-payment', async (req, res) => {
     const { sessionId } = req.body;
     try {
         const session = await stripe.checkout.sessions.retrieve(sessionId);
         if (session.payment_status === 'paid') {
-            
-            // Sauvegarde en BDD
-            const existingOrder = await Order.findOne({ stripeSessionId: sessionId });
-            if (!existingOrder) {
-                await Order.create({
-                    email: session.customer_details.email,
-                    projectName: session.metadata.projectName,
-                    amount: session.amount_total,
-                    stripeSessionId: sessionId
-                });
-            }
-            
-            // Création du ZIP
             const safeName = session.metadata.projectName.replace(/[^a-z0-9-]/gi, '_').toLowerCase();
+
+            // Enregistrement vente
+            const existing = await Order.findOne({ stripeSessionId: sessionId });
+            if (!existing) await Order.create({ email: session.customer_details.email, projectName: safeName, amount: session.amount_total, stripeSessionId: sessionId });
+
+            // CRÉATION DU ZIP ULTIMATE
             res.attachment(`${safeName}.zip`);
             const archive = archiver('zip', { zlib: { level: 9 } });
             archive.pipe(res);
-            
-            // 🎁 LE VRAI CADEAU À 15€ (Boilerplate complet)
-            
-            // 1. package.json complet
-            const packageJson = {
-                name: safeName,
-                version: "1.0.0",
-                main: "server.js",
+
+            // 1. Package.json (Avec Helmet et Cors en plus)
+            const pkg = {
+                name: safeName, version: "1.0.0", main: "server.js",
                 scripts: { "start": "node server.js", "dev": "nodemon server.js" },
-                dependencies: {
-                    "express": "^4.18.2", "mongoose": "^7.0.0", "dotenv": "^16.0.0", "stripe": "^12.0.0", "body-parser": "^1.20.0"
-                }
+                dependencies: { "express": "^4.18.2", "mongoose": "^7.0.0", "dotenv": "^16.0.0", "stripe": "^12.0.0", "body-parser": "^1.20.0", "cors": "^2.8.5", "helmet": "^7.0.0" }
             };
-            archive.append(JSON.stringify(packageJson, null, 2), { name: 'package.json' });
+            archive.append(JSON.stringify(pkg, null, 2), { name: 'package.json' });
 
-            // 2. Guide d'installation
-            const readMe = `# ${safeName}\n\nMerci pour ton achat !\n\n## Installation\n1. \`npm install\`\n2. Crée un fichier .env\n3. \`npm start\``;
-            archive.append(readMe, { name: 'README.md' });
-
-            // 3. Un vrai serveur de base
-            const serverCode = `require('dotenv').config();
+            // 2. Structure MVC : Le Serveur Propre
+            const serverJs = `require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
+const cors = require('cors');
+const helmet = require('helmet');
+const path = require('path');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.get('/', (req, res) => res.send('<h1>Ton SaaS ${safeName} démarre ici ! 🚀</h1>'));
+// Middleware de Sécurité & Utilitaires
+app.use(helmet());
+app.use(cors());
+app.use(express.json());
+app.use(express.static('public'));
 
-mongoose.connect(process.env.MONGO_URI || '').then(() => console.log('DB Connectée'));
-app.listen(PORT, () => console.log('Serveur lancé'));
+// Connexion Base de données
+mongoose.connect(process.env.MONGO_URI || '')
+.then(() => console.log('✅ MongoDB Connecté'))
+.catch(err => console.error('Erreur DB:', err));
+
+// Routes
+app.use('/', require('./routes/index'));
+
+app.listen(PORT, () => console.log(\`🚀 Serveur lancé sur http://localhost:\${PORT}\`));
 `;
-            archive.append(serverCode, { name: 'server.js' });
+            archive.append(serverJs, { name: 'server.js' });
 
-            archive.finalize();
-        } else {
-            res.status(400).send("Erreur paiement.");
-        }
-    } catch (e) {
-        res.status(500).send("Erreur serveur.");
-    }
+            // 3. Dossier ROUTES (index.js)
+            const routeIndex = `const router = require('express').Router();
+const path = require('path');
+
+router.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, '../views/index.html'));
 });
 
-app.listen(PORT, () => console.log(`Serveur lancé sur ${PORT}`));
+// Exemple d'API
+router.get('/api/status', (req, res) => {
+    res.json({ status: 'online', message: 'Bienvenue sur votre API ${safeName}' });
+});
+
+module.exports = router;`;
+            archive.append(routeIndex, { name: 'routes/index.js' });
+
+            // 4. Dossier MODELS (User.js)
+            const userModel = `const mongoose = require('mongoose');
+
+const UserSchema = new mongoose.Schema({
+    email: { type: String, required: true, unique: true },
+    password: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now }
+});
+
+module.exports = mongoose.model('User', UserSchema);`;
+            archive.append(userModel, { name: 'models/User.js' });
+
+            // 5. Dossier VIEWS (index.html)
+            const htmlView = `<!DOCTYPE html>
+<html><head><title>${safeName}</title><link rel="stylesheet" href="/css/style.css"></head>
+<body>
+    <div class="container">
+        <h1>🚀 ${safeName} est en ligne !</h1>
+        <p>Architecture MVC chargée avec succès.</p>
+        <div class="card">
+            <h3>Prochaines étapes :</h3>
+            <ul>
+                <li>Modifiez <code>routes/index.js</code> pour vos pages</li>
+                <li>Modifiez <code>models/User.js</code> pour vos données</li>
+                <li>Ajoutez votre style dans <code>public/css/style.css</code></li>
+            </ul>
+        </div>
+    </div>
+</body></html>`;
+            archive.append(htmlView, { name: 'views/index.html' });
+
+            // 6. Dossier PUBLIC (style.css)
+            const cssFile = `body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f7; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+.container { text-align: center; }
+.card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: left; margin-top: 20px; }
+li { margin-bottom: 10px; color: #555; }
+h1 { color: #111; }`;
+            archive.append(cssFile, { name: 'public/css/style.css' });
+
+            // 7. Fichier .gitignore (Indispensable)
+            archive.append(`node_modules\n.env\n.DS_Store`, { name: '.gitignore' });
+
+            // 8. Fichier .env.example
+            archive.append(`PORT=3000\nMONGO_URI=mongodb+srv://...\nSTRIPE_KEY=...`, { name: '.env.example' });
+
+            archive.finalize();
+        } else { res.status(400).send("Erreur paiement"); }
+    } catch (e) { res.status(500).send("Erreur serveur"); }
+});
+
+app.listen(PORT, () => console.log(`Serveur ${PORT}`));
