@@ -179,14 +179,82 @@ app.post('/verify-payment', async (req, res) => {
             archive.pipe(res);
             
             // Contenu du ZIP simulé
+// --- C. LE VRAI CONTENU DU ZIP (BOILERPLATE PRO) ---
+            
+            // 1. Le fichier package.json (Avec toutes les dépendances)
             const packageJsonContent = {
                 name: safeName,
                 version: "1.0.0",
-                description: "Votre SaaS généré",
-                scripts: { "start": "node server.js" }
+                main: "server.js",
+                scripts: { "start": "node server.js", "dev": "nodemon server.js" },
+                dependencies: {
+                    "express": "^4.18.2",
+                    "mongoose": "^7.0.3",
+                    "dotenv": "^16.0.3",
+                    "stripe": "^12.0.0",
+                    "body-parser": "^1.20.2",
+                    "cors": "^2.8.5"
+                }
             };
             archive.append(JSON.stringify(packageJsonContent, null, 2), { name: 'package.json' });
-            archive.append(`console.log("Merci ! Votre projet ${safeName} commence ici.");`, { name: 'server.js' });
+
+            // 2. Le fichier .env d'exemple (Pour qu'il sache quoi configurer)
+            const envExample = `PORT=3000
+MONGO_URI=mongodb+srv://...
+STRIPE_SECRET_KEY=sk_test_...
+ADMIN_PASSWORD=change_me
+`;
+            archive.append(envExample, { name: '.env.example' });
+
+            // 3. Le fichier server.js (UN VRAI SERVEUR COMPLET)
+            const serverCode = `
+require('dotenv').config();
+const express = require('express');
+const mongoose = require('mongoose');
+const bodyParser = require('body-parser');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Middleware
+app.use(bodyParser.json());
+app.use(express.static('public'));
+
+// Connexion MongoDB
+mongoose.connect(process.env.MONGO_URI)
+.then(() => console.log('✅ MongoDB Connecté'))
+.catch(err => console.error('Erreur DB:', err));
+
+// Route de base
+app.get('/', (req, res) => {
+    res.send('<h1>🚀 Ton SaaS ${session.metadata.projectName} est prêt !</h1><p>Commence à coder dans server.js</p>');
+});
+
+app.listen(PORT, () => console.log(\`Serveur lancé sur http://localhost:\${PORT}\`));
+`;
+            archive.append(serverCode, { name: 'server.js' });
+
+            // 4. Le Guide d'installation
+            const readMe = `
+# ${session.metadata.projectName}
+Généré par TurboSaaS.
+
+## 🚀 Comment lancer ton projet ?
+
+1. Installe les dépendances :
+   \`npm install\`
+
+2. Configure tes variables :
+   - Renomme ".env.example" en ".env"
+   - Ajoute ta clé MongoDB et Stripe.
+
+3. Lance le serveur :
+   \`npm start\`
+
+Bon code !
+`;
+            archive.append(readMe, { name: 'README.md' });
+
             archive.finalize();
         } else {
             res.status(400).send("Erreur paiement.");
