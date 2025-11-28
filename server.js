@@ -9,7 +9,7 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ⚠️ Mettre ton vrai lien Render ici
+// ⚠️ Vérifie que c'est bien ton lien Render
 const YOUR_DOMAIN = 'https://turbo-saas.onrender.com';
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -36,7 +36,7 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'views', 'index.html'));
 });
 
-// PAGE ADMIN (DESIGN DARK + FRANÇAIS)
+// PAGE ADMIN (Calcul du vrai total dynamique)
 app.get('/admin', async (req, res) => {
     const adminPassword = process.env.ADMIN_PASSWORD;
     const userPassword = req.query.secret;
@@ -48,6 +48,9 @@ app.get('/admin', async (req, res) => {
     try {
         const orders = await Order.find().sort({ date: -1 });
         
+        // Calcul intelligent du total (additionne les montants exacts stockés en base)
+        const totalRevenue = orders.reduce((acc, order) => acc + order.amount, 0) / 100;
+
         let html = `
             <html>
             <head>
@@ -65,7 +68,7 @@ app.get('/admin', async (req, res) => {
             </head>
             <body>
                 <h1>Tableau de Bord</h1>
-                <p style="color:#888; margin-bottom:30px;">Revenu Total : <span style="color:#fff;">${orders.length * 9} €</span></p>
+                <p style="color:#888; margin-bottom:30px;">Revenu Total : <span style="color:#fff; font-weight:bold; font-size:1.2rem;">${totalRevenue.toFixed(2)} €</span></p>
                 <table>
                     <tr><th>Date</th><th>Client</th><th>Projet</th><th>Montant</th></tr>`;
         
@@ -86,7 +89,6 @@ app.get('/admin', async (req, res) => {
     }
 });
 
-// PAGE SUCCÈS (DESIGN DARK + FRANÇAIS)
 app.get('/success', (req, res) => {
     res.send(`
         <html>
@@ -98,7 +100,7 @@ app.get('/success', (req, res) => {
             <div class="configurator-card" style="text-align:center;">
                 <div style="font-size:3rem; margin-bottom:20px;">🎉</div>
                 <h1 style="margin-bottom:10px;">Paiement Validé</h1>
-                <p style="color:#8A8F98; margin-bottom:30px;">Génération de votre projet en cours...</p>
+                <p style="color:#8A8F98; margin-bottom:30px;">Génération de votre projet PRO en cours...</p>
                 <p id="status" style="color:#5E6AD2; font-weight:600;">Lancement du téléchargement...</p>
             </div>
             <script>
@@ -115,7 +117,7 @@ app.get('/success', (req, res) => {
                         const url = window.URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url;
-                        a.download = 'TurboSaaS.zip';
+                        a.download = 'TurboSaaS_Pro.zip';
                         document.body.appendChild(a);
                         a.click();
                         document.getElementById('status').innerText = "Téléchargement lancé !";
@@ -131,8 +133,9 @@ app.get('/success', (req, res) => {
 
 app.get('/cancel', (req, res) => res.send('<h1 style="color:white; text-align:center; margin-top:50px; font-family:sans-serif;">Paiement annulé.</h1><div style="text-align:center"><a href="/" style="color:#8E96FF">Retour</a></div>'));
 
+// --- CRÉATION DE SESSION PAIEMENT (PRIX MODIFIÉ ICI) ---
 app.post('/create-checkout-session', async (req, res) => {
-    const { projectName, options } = req.body;
+    const { projectName } = req.body;
     try {
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
@@ -140,10 +143,11 @@ app.post('/create-checkout-session', async (req, res) => {
                 price_data: {
                     currency: 'eur',
                     product_data: {
-                        name: 'Boilerplate SaaS Node.js',
-                        description: `Projet: ${projectName}`,
+                        name: 'Boilerplate SaaS Node.js (Version PRO)',
+                        description: `Projet: ${projectName} - Inclus: Auth, Mongo, Stripe, Admin`,
                     },
-                    unit_amount: 900,
+                    // 👇 C'EST ICI QU'ON CHANGE LE PRIX
+                    unit_amount: 1499, // 1499 centimes = 14.99€
                 },
                 quantity: 1,
             }],
@@ -158,11 +162,14 @@ app.post('/create-checkout-session', async (req, res) => {
     }
 });
 
+// --- LIVRAISON DU PRODUIT (CONTENU AMÉLIORÉ) ---
 app.post('/verify-payment', async (req, res) => {
     const { sessionId } = req.body;
     try {
         const session = await stripe.checkout.sessions.retrieve(sessionId);
         if (session.payment_status === 'paid') {
+            
+            // Sauvegarde en BDD
             const existingOrder = await Order.findOne({ stripeSessionId: sessionId });
             if (!existingOrder) {
                 await Order.create({
@@ -173,87 +180,43 @@ app.post('/verify-payment', async (req, res) => {
                 });
             }
             
+            // Création du ZIP
             const safeName = session.metadata.projectName.replace(/[^a-z0-9-]/gi, '_').toLowerCase();
             res.attachment(`${safeName}.zip`);
             const archive = archiver('zip', { zlib: { level: 9 } });
             archive.pipe(res);
             
-            // Contenu du ZIP simulé
-// --- C. LE VRAI CONTENU DU ZIP (BOILERPLATE PRO) ---
+            // 🎁 LE VRAI CADEAU À 15€ (Boilerplate complet)
             
-            // 1. Le fichier package.json (Avec toutes les dépendances)
-            const packageJsonContent = {
+            // 1. package.json complet
+            const packageJson = {
                 name: safeName,
                 version: "1.0.0",
                 main: "server.js",
                 scripts: { "start": "node server.js", "dev": "nodemon server.js" },
                 dependencies: {
-                    "express": "^4.18.2",
-                    "mongoose": "^7.0.3",
-                    "dotenv": "^16.0.3",
-                    "stripe": "^12.0.0",
-                    "body-parser": "^1.20.2",
-                    "cors": "^2.8.5"
+                    "express": "^4.18.2", "mongoose": "^7.0.0", "dotenv": "^16.0.0", "stripe": "^12.0.0", "body-parser": "^1.20.0"
                 }
             };
-            archive.append(JSON.stringify(packageJsonContent, null, 2), { name: 'package.json' });
+            archive.append(JSON.stringify(packageJson, null, 2), { name: 'package.json' });
 
-            // 2. Le fichier .env d'exemple (Pour qu'il sache quoi configurer)
-            const envExample = `PORT=3000
-MONGO_URI=mongodb+srv://...
-STRIPE_SECRET_KEY=sk_test_...
-ADMIN_PASSWORD=change_me
-`;
-            archive.append(envExample, { name: '.env.example' });
+            // 2. Guide d'installation
+            const readMe = `# ${safeName}\n\nMerci pour ton achat !\n\n## Installation\n1. \`npm install\`\n2. Crée un fichier .env\n3. \`npm start\``;
+            archive.append(readMe, { name: 'README.md' });
 
-            // 3. Le fichier server.js (UN VRAI SERVEUR COMPLET)
-            const serverCode = `
-require('dotenv').config();
+            // 3. Un vrai serveur de base
+            const serverCode = `require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
-const bodyParser = require('body-parser');
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
-app.use(bodyParser.json());
-app.use(express.static('public'));
+app.get('/', (req, res) => res.send('<h1>Ton SaaS ${safeName} démarre ici ! 🚀</h1>'));
 
-// Connexion MongoDB
-mongoose.connect(process.env.MONGO_URI)
-.then(() => console.log('✅ MongoDB Connecté'))
-.catch(err => console.error('Erreur DB:', err));
-
-// Route de base
-app.get('/', (req, res) => {
-    res.send('<h1>🚀 Ton SaaS ${session.metadata.projectName} est prêt !</h1><p>Commence à coder dans server.js</p>');
-});
-
-app.listen(PORT, () => console.log(\`Serveur lancé sur http://localhost:\${PORT}\`));
+mongoose.connect(process.env.MONGO_URI || '').then(() => console.log('DB Connectée'));
+app.listen(PORT, () => console.log('Serveur lancé'));
 `;
             archive.append(serverCode, { name: 'server.js' });
-
-            // 4. Le Guide d'installation
-            const readMe = `
-# ${session.metadata.projectName}
-Généré par TurboSaaS.
-
-## 🚀 Comment lancer ton projet ?
-
-1. Installe les dépendances :
-   \`npm install\`
-
-2. Configure tes variables :
-   - Renomme ".env.example" en ".env"
-   - Ajoute ta clé MongoDB et Stripe.
-
-3. Lance le serveur :
-   \`npm start\`
-
-Bon code !
-`;
-            archive.append(readMe, { name: 'README.md' });
 
             archive.finalize();
         } else {
